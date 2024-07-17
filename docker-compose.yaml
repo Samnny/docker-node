@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+
+  app:
+    build:
+      context: app
+    container_name: app
+    entrypoint: sh -c "npm install && node index.js"
+    volumes:
+      - ./app:/usr/src/app
+    tty: true
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  db:
+    image: mysql:5.7
+    command: --innodb-use-native-aio=0
+    container_name: db
+    restart: always
+    tty: true
+    volumes:
+      - database:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - MYSQL_DATABASE=nodedb
+      - MYSQL_ROOT_PASSWORD=root
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 10s
+      retries: 3
+  
+  nginx:
+    build:
+      context: nginx
+    container_name: nginx
+    ports:
+      - "8080:80"
+    tty: true
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  database: 
+    driver: local  
+
+networks:
+  node-network:
+    driver: bridge
